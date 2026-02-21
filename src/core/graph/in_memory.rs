@@ -3,10 +3,11 @@ use crate::core::types::GraphInput;
 #[derive(Clone, Debug, PartialEq)]
 pub struct InMemoryGraph {
     pub node_count: usize,
-    pub edges: Vec<(usize, usize, Option<f64>)>,
     pub offsets: Vec<usize>,
+    pub degrees: Vec<usize>, // Precomputed for O(1) lookup
     pub neighbors: Vec<usize>,
     pub weights: Vec<f64>,
+    cached_total_weight: f64,
 }
 
 impl From<&GraphInput> for InMemoryGraph {
@@ -22,8 +23,9 @@ impl From<&GraphInput> for InMemoryGraph {
             offsets[i + 1] = offsets[i] + degrees[i];
         }
 
-        let mut neighbors = vec![0; offsets[value.node_count]];
-        let mut weights = vec![0.0; offsets[value.node_count]];
+        let total_entries = offsets[value.node_count];
+        let mut neighbors = vec![0; total_entries];
+        let mut weights = vec![0.0; total_entries];
         let mut current_offsets = offsets.clone();
 
         for &(u, v, w) in &value.edges {
@@ -40,31 +42,44 @@ impl From<&GraphInput> for InMemoryGraph {
             current_offsets[v] += 1;
         }
 
+        let cached_total_weight = weights.iter().sum::<f64>() / 2.0;
+
+        // Precompute degrees for O(1) neighbor iteration
+        let degrees: Vec<usize> = (0..value.node_count)
+            .map(|i| offsets[i + 1] - offsets[i])
+            .collect();
+
         Self {
             node_count: value.node_count,
-            edges: value.edges.clone(),
             offsets,
+            degrees,
             neighbors,
             weights,
+            cached_total_weight,
         }
     }
 }
 
 impl InMemoryGraph {
+    /// Iterate over (neighbor, weight) pairs for a node.
+    /// Uses precomputed degree for single-load bound calculation.
+    #[inline]
     pub fn neighbors(&self, node: usize) -> impl Iterator<Item = (usize, f64)> + '_ {
         let start = self.offsets[node];
-        let end = self.offsets[node + 1];
-        self.neighbors[start..end]
+        let count = self.degrees[node]; // Single load instead of offsets[node+1]
+        self.neighbors[start..start + count]
             .iter()
             .copied()
-            .zip(self.weights[start..end].iter().copied())
+            .zip(self.weights[start..start + count].iter().copied())
     }
 
+    /// Get node degree in O(1) time.
+    #[inline]
     pub fn degree(&self, node: usize) -> usize {
-        self.offsets[node + 1] - self.offsets[node]
+        self.degrees[node] // Direct lookup, no subtraction
     }
 
     pub fn total_weight(&self) -> f64 {
-        self.weights.iter().sum::<f64>() / 2.0
+        self.cached_total_weight
     }
 }

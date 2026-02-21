@@ -5,6 +5,9 @@ use crate::core::runtime::orchestrator;
 use crate::core::types::{
     BackendType, GraphInput, PartitionResult, RunExecution, RunOutcome, RunStatus,
 };
+use bitvec::prelude::*;
+use std::borrow::Cow;
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub fn run(graph: &GraphInput, config: &RunConfig) -> Result<RunOutcome, HitLeidenError> {
@@ -92,31 +95,27 @@ pub fn hit_leiden(
     }
 
     let p_max = state.levels;
-    let mut current_delta = delta_g.clone();
+    // Use Cow to avoid cloning delta_g at level 0; only own when aggregation produces a new delta
+    let mut current_delta: Cow<GraphInput> = Cow::Borrowed(delta_g);
 
-    let mut changed_nodes_per_level = vec![std::collections::BTreeSet::new(); p_max];
-    let mut refined_nodes_per_level = vec![std::collections::BTreeSet::new(); p_max];
+    let mut changed_nodes_per_level: Vec<BitVec> = vec![bitvec![0; delta_g.node_count]; p_max];
+    let mut refined_nodes_per_level: Vec<BitVec> = vec![bitvec![0; delta_g.node_count]; p_max];
 
     for p in 0..p_max {
-        // G_p <- G_p \oplus \Delta G_p
-        // f_p, \Psi, B_p, K <- inc_movement(G_p, \Delta G_p, f_p, s_cur_p, \Psi, \gamma)
         let (b_p, k) = inc_movement(
             &state.supergraphs[p],
             &current_delta,
             &mut state.community_mapping_per_level[p],
             &state.current_subcommunity_mapping_per_level[p],
-            &mut state.cc_indices_per_level[p],
             gamma,
             mode,
         );
         changed_nodes_per_level[p] = b_p;
 
-        // s_cur_p, \Psi, R_p <- inc_refinement(G_p, f_p, s_cur_p, \Psi, K, \gamma)
         let r_p = inc_refinement(
             &state.supergraphs[p],
             &state.community_mapping_per_level[p],
             &mut state.current_subcommunity_mapping_per_level[p],
-            &mut state.cc_indices_per_level[p],
             &k,
             gamma,
             mode,
@@ -124,7 +123,6 @@ pub fn hit_leiden(
         refined_nodes_per_level[p] = r_p.clone();
 
         if p < p_max - 1 {
-            // \Delta G_{p+1}, s_pre_p <- inc_aggregation(G_p, \Delta G_p, s_pre_p, s_cur_p, R_p)
             let (next_delta, next_s_pre) = inc_aggregation(
                 &state.supergraphs[p],
                 &current_delta,
@@ -132,26 +130,23 @@ pub fn hit_leiden(
                 &state.current_subcommunity_mapping_per_level[p],
                 &r_p,
             );
-            current_delta = next_delta;
+            current_delta = Cow::Owned(next_delta);
             state.previous_subcommunity_mapping_per_level[p] = next_s_pre;
         }
     }
 
-    // {f_P} <- def_update({f_P}, {s_cur_P}, {B_P}, P)
     def_update(
         &mut state.community_mapping_per_level,
         &state.current_subcommunity_mapping_per_level,
         &mut changed_nodes_per_level,
         p_max,
     );
-    // {g_P} <- def_update({g_P}, {s_cur_P}, {R_P}, P)
     def_update(
         &mut state.refined_community_mapping_per_level,
         &state.current_subcommunity_mapping_per_level,
         &mut refined_nodes_per_level,
         p_max,
     );
-    // f <- g_1
     state.node_to_comm = state.community_mapping_per_level[0].clone();
 }
 
@@ -160,49 +155,40 @@ fn inc_movement(
     delta_graph: &GraphInput,
     node_to_community: &mut Vec<usize>,
     node_to_subcommunity: &[usize],
-    _edge_updates: &mut Vec<usize>,
     resolution_parameter: f64,
     mode: crate::core::config::RunMode,
-) -> (
-    std::collections::BTreeSet<usize>,
-    std::collections::BTreeSet<usize>,
-) {
-    use std::collections::BTreeSet;
-
-    let mut active_nodes = BTreeSet::new();
-    let mut changed_nodes = BTreeSet::new();
-    let mut affected_nodes_for_refinement = BTreeSet::new();
+) -> (BitVec, BitVec) {
+    let n = graph.node_count;
+    let mut active_nodes = bitvec![0; n];
+    let mut changed_nodes = bitvec![0; n];
+    let mut affected_nodes_for_refinement = bitvec![0; n];
 
     // 2 for (v_i, v_j, \alpha) \in \Delta G do
     for &(u, v, w) in &delta_graph.edges {
         let alpha = w.unwrap_or(1.0);
         if alpha > 0.0 && node_to_community[u] != node_to_community[v] {
-            active_nodes.insert(u);
-            active_nodes.insert(v);
+            active_nodes.set(u, true);
+            active_nodes.set(v, true);
         }
         if alpha < 0.0 && node_to_community[u] == node_to_community[v] {
-            active_nodes.insert(u);
-            active_nodes.insert(v);
+            active_nodes.set(u, true);
+            active_nodes.set(v, true);
         }
         if node_to_subcommunity[u] == node_to_subcommunity[v] {
-            // update_edge(G_\Psi, (v_i, v_j, \alpha))
-            // K.add(v_i); K.add(v_j);
-            affected_nodes_for_refinement.insert(u);
-            affected_nodes_for_refinement.insert(v);
+            affected_nodes_for_refinement.set(u, true);
+            affected_nodes_for_refinement.set(v, true);
         }
     }
 
-    // If delta_graph is empty (initial run), we need to add all nodes to active_nodes
+    // If delta_graph is empty (initial run), activate all nodes
     if delta_graph.edges.is_empty() {
-        for i in 0..graph.node_count {
-            active_nodes.insert(i);
-        }
+        active_nodes.fill(true);
     }
 
     let twice_total_weight = graph.total_weight() * 2.0;
-    let mut community_degrees = vec![0.0; graph.node_count];
-    let mut node_degrees = vec![0.0; graph.node_count];
-    for i in 0..graph.node_count {
+    let mut community_degrees = vec![0.0; n];
+    let mut node_degrees = vec![0.0; n];
+    for i in 0..n {
         let d_i: f64 = graph.neighbors(i).map(|(_, w)| w).sum();
         node_degrees[i] = d_i;
         community_degrees[node_to_community[i]] += d_i;
@@ -210,7 +196,10 @@ fn inc_movement(
 
     if mode == crate::core::config::RunMode::Throughput {
         let mut current_active_nodes = active_nodes;
-        while !current_active_nodes.is_empty() {
+        // Create buffer pool once for reuse across multiple inc_movement_parallel calls
+        let buffer_pool =
+            crate::core::algorithm::throughput::BufferPool::new(n, rayon::current_num_threads());
+        while current_active_nodes.any() {
             let (new_changed, new_affected, next_active) =
                 crate::core::algorithm::throughput::inc_movement_parallel(
                     graph,
@@ -221,27 +210,24 @@ fn inc_movement(
                     &node_degrees,
                     twice_total_weight,
                     resolution_parameter,
+                    &buffer_pool,
                 );
-            changed_nodes.extend(new_changed);
-            affected_nodes_for_refinement.extend(new_affected);
+            changed_nodes |= new_changed;
+            affected_nodes_for_refinement |= new_affected;
             current_active_nodes = next_active;
         }
         return (changed_nodes, affected_nodes_for_refinement);
     }
 
-    // 9 for A \neq \emptyset do
-    while !active_nodes.is_empty() {
-        let current_node = *active_nodes.iter().next().unwrap();
-        active_nodes.remove(&current_node);
+    // 9 for A \neq \emptyset do (deterministic mode)
+    while active_nodes.any() {
+        let current_node = active_nodes.iter_ones().next().unwrap();
+        active_nodes.set(current_node, false);
 
         let mut best_community = node_to_community[current_node];
         let mut best_modularity_gain = 0.0;
 
-        // Calculate \Delta Q for moving current_node to C
-        // \Delta Q(v \to C', \gamma) = \frac{w(v, C') - w(v, C)}{2m} + \frac{\gamma \cdot d(v) \cdot (d(C) - d(v) - d(C'))}{(2m)^2}
-
-        // First, find neighboring communities
-        let mut neighbor_communities = std::collections::BTreeMap::new();
+        let mut neighbor_communities: HashMap<usize, f64> = HashMap::new();
         let mut weight_to_current_community = 0.0;
         let current_node_degree = node_degrees[current_node];
 
@@ -277,18 +263,17 @@ fn inc_movement(
         if best_modularity_gain > 0.0 {
             let old_community = node_to_community[current_node];
             node_to_community[current_node] = best_community;
-            changed_nodes.insert(current_node);
+            changed_nodes.set(current_node, true);
             community_degrees[old_community] -= current_node_degree;
             community_degrees[best_community] += current_node_degree;
 
             for (neighbor_node, _w) in graph.neighbors(current_node) {
                 if node_to_community[neighbor_node] != best_community {
-                    active_nodes.insert(neighbor_node);
+                    active_nodes.set(neighbor_node, true);
                 }
                 if node_to_subcommunity[current_node] == node_to_subcommunity[neighbor_node] {
-                    // update_edge(G_\Psi, (v_i, v_j, -w(v_i, v_j)))
-                    affected_nodes_for_refinement.insert(current_node);
-                    affected_nodes_for_refinement.insert(neighbor_node);
+                    affected_nodes_for_refinement.set(current_node, true);
+                    affected_nodes_for_refinement.set(neighbor_node, true);
                 }
             }
         }
@@ -301,75 +286,76 @@ fn inc_refinement(
     graph: &crate::core::graph::in_memory::InMemoryGraph,
     node_to_community: &[usize],
     node_to_subcommunity: &mut Vec<usize>,
-    _edge_updates: &mut Vec<usize>,
-    affected_nodes: &std::collections::BTreeSet<usize>,
+    affected_nodes: &BitVec,
     resolution_parameter: f64,
     mode: crate::core::config::RunMode,
-) -> std::collections::BTreeSet<usize> {
-    use std::collections::{BTreeMap, BTreeSet, VecDeque};
-    let mut refined_nodes = BTreeSet::new();
+) -> BitVec {
+    let n = graph.node_count;
+    let mut refined_nodes = bitvec![0; n];
 
-    // Find affected sub-communities
-    let mut affected_subcommunities = BTreeSet::new();
-    for &v in affected_nodes {
+    // Build inverted index: subcommunity -> nodes (only for affected subcommunities)
+    let mut affected_subcommunities: HashSet<usize> = HashSet::new();
+    for v in affected_nodes.iter_ones() {
         affected_subcommunities.insert(node_to_subcommunity[v]);
+    }
+
+    // Build node lists per affected subcommunity in a single O(n) pass
+    let mut subcomm_nodes: HashMap<usize, Vec<usize>> = HashMap::new();
+    for i in 0..n {
+        let sc = node_to_subcommunity[i];
+        if affected_subcommunities.contains(&sc) {
+            subcomm_nodes.entry(sc).or_default().push(i);
+        }
     }
 
     let mut next_subcommunity_id = node_to_subcommunity.iter().max().copied().unwrap_or(0) + 1;
 
-    // 2 for v_i \in K do
-    for &subcommunity in &affected_subcommunities {
-        let mut vertices = Vec::new();
-        for i in 0..graph.node_count {
-            if node_to_subcommunity[i] == subcommunity {
-                vertices.push(i);
-            }
-        }
+    // Reusable visited bitvec across subcommunities
+    let mut visited = bitvec![0; n];
 
+    // 2 for v_i \in K do — connected component splitting
+    for (_subcommunity, vertices) in &subcomm_nodes {
         if vertices.is_empty() {
             continue;
         }
 
-        let mut visited = vec![false; vertices.len()];
-        let mut components = Vec::new();
+        let mut components: Vec<Vec<usize>> = Vec::new();
 
-        for i in 0..vertices.len() {
-            if !visited[i] {
-                let mut comp = Vec::new();
-                let mut queue = VecDeque::new();
-                queue.push_back(i);
-                visited[i] = true;
+        for &start_node in vertices {
+            if visited[start_node] {
+                continue;
+            }
+            let mut comp = Vec::new();
+            let mut queue = VecDeque::new();
+            queue.push_back(start_node);
+            visited.set(start_node, true);
 
-                while let Some(curr_idx) = queue.pop_front() {
-                    let current_node = vertices[curr_idx];
-                    comp.push(current_node);
-
-                    for (neighbor_node, _w) in graph.neighbors(current_node) {
-                        if node_to_subcommunity[neighbor_node] == subcommunity {
-                            if let Some(neighbor_index) =
-                                vertices.iter().position(|&x| x == neighbor_node)
-                            {
-                                if !visited[neighbor_index] {
-                                    visited[neighbor_index] = true;
-                                    queue.push_back(neighbor_index);
-                                }
-                            }
-                        }
+            while let Some(current_node) = queue.pop_front() {
+                comp.push(current_node);
+                let current_sc = node_to_subcommunity[current_node];
+                for (neighbor_node, _w) in graph.neighbors(current_node) {
+                    if node_to_subcommunity[neighbor_node] == current_sc && !visited[neighbor_node]
+                    {
+                        visited.set(neighbor_node, true);
+                        queue.push_back(neighbor_node);
                     }
                 }
-                components.push(comp);
             }
+            components.push(comp);
+        }
+
+        // Clear visited bits for nodes we touched
+        for &v in vertices {
+            visited.set(v, false);
         }
 
         if components.len() > 1 {
-            let mut largest_idx = 0;
-            let mut largest_size = components[0].len();
-            for (i, comp) in components.iter().enumerate().skip(1) {
-                if comp.len() > largest_size {
-                    largest_size = comp.len();
-                    largest_idx = i;
-                }
-            }
+            let largest_idx = components
+                .iter()
+                .enumerate()
+                .max_by_key(|(_, c)| c.len())
+                .map(|(i, _)| i)
+                .unwrap();
 
             for (i, comp) in components.iter().enumerate() {
                 if i != largest_idx {
@@ -377,7 +363,7 @@ fn inc_refinement(
                     next_subcommunity_id += 1;
                     for &v in comp {
                         node_to_subcommunity[v] = new_subcommunity;
-                        refined_nodes.insert(v);
+                        refined_nodes.set(v, true);
                     }
                 }
             }
@@ -389,15 +375,20 @@ fn inc_refinement(
         .enumerate()
         .all(|(i, &c)| i == c);
     if is_initial {
-        for i in 0..graph.node_count {
-            refined_nodes.insert(i);
-        }
+        refined_nodes.fill(true);
+    }
+
+    // Pre-compute subcommunity sizes for O(1) singleton check
+    let max_subcomm = node_to_subcommunity.iter().max().copied().unwrap_or(0);
+    let mut subcommunity_sizes = vec![0usize; max_subcomm + 1];
+    for &sc in node_to_subcommunity.iter() {
+        subcommunity_sizes[sc] += 1;
     }
 
     let twice_total_weight = graph.total_weight() * 2.0;
-    let mut subcommunity_degrees = BTreeMap::new();
-    let mut node_degrees = vec![0.0; graph.node_count];
-    for i in 0..graph.node_count {
+    let mut subcommunity_degrees: HashMap<usize, f64> = HashMap::new();
+    let mut node_degrees = vec![0.0; n];
+    for i in 0..n {
         let d_i: f64 = graph.neighbors(i).map(|(_, w)| w).sum();
         node_degrees[i] = d_i;
         *subcommunity_degrees
@@ -405,7 +396,7 @@ fn inc_refinement(
             .or_insert(0.0) += d_i;
     }
 
-    let mut refined_nodes_sorted: Vec<usize> = refined_nodes.iter().copied().collect();
+    let mut refined_nodes_sorted: Vec<usize> = refined_nodes.iter_ones().collect();
     refined_nodes_sorted.sort_by(|&a, &b| node_degrees[a].partial_cmp(&node_degrees[b]).unwrap());
 
     if mode == crate::core::config::RunMode::Throughput {
@@ -415,6 +406,7 @@ fn inc_refinement(
             node_to_community,
             node_to_subcommunity,
             &mut subcommunity_degrees,
+            &subcommunity_sizes,
             &node_degrees,
             twice_total_weight,
             resolution_parameter,
@@ -422,18 +414,13 @@ fn inc_refinement(
         return refined_nodes;
     }
 
-    // 5 for v_i \in R do
+    // 5 for v_i \in R do (deterministic refinement merging)
     for &current_node in &refined_nodes_sorted {
-        let mut is_singleton = true;
-        for i in 0..graph.node_count {
-            if i != current_node && node_to_subcommunity[i] == node_to_subcommunity[current_node] {
-                is_singleton = false;
-                break;
-            }
-        }
+        // O(1) singleton check
+        let is_singleton = subcommunity_sizes[node_to_subcommunity[current_node]] == 1;
 
         if is_singleton {
-            let mut neighbor_subcommunities = BTreeMap::new();
+            let mut neighbor_subcommunities: HashMap<usize, f64> = HashMap::new();
             let mut weight_to_current_subcommunity = 0.0;
             let current_node_degree = node_degrees[current_node];
 
@@ -485,6 +472,8 @@ fn inc_refinement(
             if best_modularity_gain > 0.0 {
                 let old_subcommunity = node_to_subcommunity[current_node];
                 node_to_subcommunity[current_node] = best_subcommunity;
+                subcommunity_sizes[old_subcommunity] -= 1;
+                subcommunity_sizes[best_subcommunity] += 1;
                 *subcommunity_degrees.entry(old_subcommunity).or_insert(0.0) -= current_node_degree;
                 *subcommunity_degrees.entry(best_subcommunity).or_insert(0.0) +=
                     current_node_degree;
@@ -500,9 +489,10 @@ fn inc_aggregation(
     delta_graph: &GraphInput,
     previous_node_to_subcommunity: &[usize],
     current_node_to_subcommunity: &[usize],
-    refined_nodes: &std::collections::BTreeSet<usize>,
+    refined_nodes: &BitVec,
 ) -> (GraphInput, Vec<usize>) {
     let mut delta_supergraph = Vec::new();
+    // Mutate in-place instead of to_vec() — start from previous, update refined nodes
     let mut next_previous_node_to_subcommunity = previous_node_to_subcommunity.to_vec();
 
     // 2 for (v_i, v_j, \alpha) \in \Delta G do
@@ -514,7 +504,7 @@ fn inc_aggregation(
     }
 
     // 5 for v_i \in R do
-    for &current_node in refined_nodes {
+    for current_node in refined_nodes.iter_ones() {
         for (neighbor_node, w) in graph.neighbors(current_node) {
             if current_node_to_subcommunity[neighbor_node]
                 == previous_node_to_subcommunity[neighbor_node]
@@ -532,19 +522,16 @@ fn inc_aggregation(
                 ));
             }
         }
-        // Self loops
-        // delta_supergraph.push((previous_node_to_subcommunity[current_node], previous_node_to_subcommunity[current_node], Some(-w(current_node, current_node))));
-        // delta_supergraph.push((current_node_to_subcommunity[current_node], current_node_to_subcommunity[current_node], Some(w(current_node, current_node))));
     }
 
     // 12 for v_i \in R do
-    for &current_node in refined_nodes {
+    for current_node in refined_nodes.iter_ones() {
         next_previous_node_to_subcommunity[current_node] =
             current_node_to_subcommunity[current_node];
     }
 
-    // 14 Compress(\Delta H)
-    let mut compressed_supergraph = std::collections::BTreeMap::new();
+    // 14 Compress(\Delta H) — use HashMap instead of BTreeMap
+    let mut compressed_supergraph: HashMap<(usize, usize), f64> = HashMap::new();
     for (u, v, w) in delta_supergraph {
         let weight = w.unwrap_or(1.0);
         let (min_u, max_v) = if u <= v { (u, v) } else { (v, u) };
@@ -578,7 +565,7 @@ fn inc_aggregation(
 fn def_update(
     node_to_community_per_level: &mut [Vec<usize>],
     node_to_subcommunity_per_level: &[Vec<usize>],
-    changed_nodes_per_level: &mut [std::collections::BTreeSet<usize>],
+    changed_nodes_per_level: &mut [BitVec],
     max_levels: usize,
 ) {
     // 1 for p from P to 1 do
@@ -586,7 +573,7 @@ fn def_update(
         // 2 if p \neq P then
         if p < max_levels - 1 {
             // 3 for v_i^p \in B_p do
-            for &current_node in &changed_nodes_per_level[p] {
+            for current_node in changed_nodes_per_level[p].iter_ones() {
                 // 4 f_p(v_i^p) = f_{p+1}(s_p(v_i^p))
                 node_to_community_per_level[p][current_node] = node_to_community_per_level[p + 1]
                     [node_to_subcommunity_per_level[p][current_node]];
@@ -596,15 +583,14 @@ fn def_update(
         // 5 if p \neq 1 then
         if p > 0 {
             // 6 for v_i^p \in B_p do
-            let changed_nodes_clone = changed_nodes_per_level[p].clone();
-            for &current_node in &changed_nodes_clone {
+            let changed_nodes_at_p: Vec<usize> = changed_nodes_per_level[p].iter_ones().collect();
+            for current_node in changed_nodes_at_p {
                 // 7 B_{p-1}.add(s_p^{-1}(v_i^p))
-                // We need to find all vertices in level p-1 that map to current_node in level p
                 for (previous_level_node, &subcommunity_value) in
                     node_to_subcommunity_per_level[p - 1].iter().enumerate()
                 {
                     if subcommunity_value == current_node {
-                        changed_nodes_per_level[p - 1].insert(previous_level_node);
+                        changed_nodes_per_level[p - 1].set(previous_level_node, true);
                     }
                 }
             }

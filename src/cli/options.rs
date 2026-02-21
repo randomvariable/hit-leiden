@@ -14,6 +14,4 @@ pub struct CliOptions {
     pub mode: CliMode,
     #[arg(long, default_value = "in-memory")]
     pub backend: String,
-    #[arg(long, default_value = "cpu")]
-    pub accel: String,
 }

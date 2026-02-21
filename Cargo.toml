@@ -11,20 +11,46 @@ rayon = "1.10"
 smallvec = "1.13"
 bitvec = "1.0"
 thiserror = "2.0"
-
+webgraph = { version = "0.6.0", optional = true }
+lender = { version = "0.6.2", optional = true }
+graphrs = "0.11"
+rand = "0.8"
 [dev-dependencies]
 proptest  = "1.6"
 criterion = "0.6"
-
-[build-dependencies]
-cc = "1.0"
+webgraph  = "0.6.0"
+anyhow    = "1.0.102"
+lender    = "0.6.2"
 
 [features]
 default = [
 ]
-native = [
+profiling = [
+  "webgraph",
+  "lender",
 ]
-cuda = [
+
+[[bin]]
+name = "profile_run"
+path = "src/bin/profile_run.rs"
+required-features = [
+  "profiling",
 ]
-rocm = [
+
+[[bin]]
+name = "profile_incremental"
+path = "src/bin/profile_incremental.rs"
+required-features = [
+  "profiling",
 ]
+
+[[bench]]
+name    = "hit_leiden_suite"
+path    = "benchmarks/criterion/hit_leiden_suite.rs"
+harness = false
+
+[profile.bench]
+debug = true
+
+[profile.release]
+debug = true

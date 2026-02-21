@@ -1,10 +1,9 @@
-pub mod accel;
 pub mod benchmark;
 pub mod cli;
 pub mod core;
 
 pub use core::backend::{AccelerationTarget, GraphBackend, GraphSource};
-pub use core::config::RunConfig;
+pub use core::config::{RunConfig, RunMode};
 pub use core::error::HitLeidenError;
 pub use core::report::{BenchmarkOutcome, ValidationOutcome};
 pub use core::types::{GraphInput, RunOutcome};

@@ -17,18 +17,11 @@ pub fn run_from_cli(
         _ => GraphBackend::InMemory,
     };
 
-    let acceleration = match options.accel.as_str() {
-        "cuda" => AccelerationTarget::Cuda,
-        "rocm" => AccelerationTarget::Rocm,
-        "native" => AccelerationTarget::Native,
-        _ => AccelerationTarget::PureRust,
-    };
-
     let config = RunConfig {
         mode,
         graph_source: GraphSource::File, // Assuming file for now
         graph_backend,
-        acceleration,
+        acceleration: AccelerationTarget::PureRust,
         quality_tolerance: 0.001,
         max_iterations: 10,
         pinned_profile: None,

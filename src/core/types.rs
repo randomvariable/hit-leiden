@@ -137,3 +137,26 @@ impl GraphInput {
         }
     }
 }
+
+/// Results from a single batch update
+#[derive(Clone, Debug)]
+pub struct BatchResult {
+    pub batch_idx: usize,
+    pub edges_added: usize,
+    pub total_edges: usize,
+    pub nodes_in_graph: usize,
+    pub hit_leiden_time_ms: f64,
+    pub st_leiden_time_ms: f64,
+    pub speedup: f64,
+    pub hit_leiden_iterations: usize,
+    pub modularity: f64,
+}
+
+/// Aggregate results across all incremental batches
+#[derive(Clone, Debug)]
+pub struct IncrementalOutcome {
+    pub batches: Vec<BatchResult>,
+    pub total_time_seconds: f64,
+    pub avg_speedup: f64,
+    pub cumulative_speedup: f64,
+}

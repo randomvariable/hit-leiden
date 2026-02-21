@@ -1,0 +1,118 @@
+[config]
+default_to_workspace = false
+
+[env]
+BENCH    = "hit_leiden_suite"
+BENCH_FN = "hit_leiden_run_throughput"
+
+# ── Data ─────────────────────────────────────────────────────────────────────
+
+[tasks.data]
+description = "Download the uk-2007-05@100000 benchmark dataset"
+script = [
+  "bash scripts/download_it_2004.sh",
+]
+
+# ── Build ─────────────────────────────────────────────────────────────────────
+
+[tasks.bench-build]
+# Uses the bench profile (debug = true) so profilers can resolve symbols.
+# cargo build --release would use the release profile and strip symbols.
+description = "Build the benchmark binary using the bench profile (debug symbols intact)"
+command = "cargo"
+args = [
+  "bench",
+  "--no-run",
+  "--bench",
+  "${BENCH}",
+]
+
+# ── Bench ─────────────────────────────────────────────────────────────────────
+
+[tasks.bench]
+description = "Run Criterion benchmarks (release, no profiling)"
+command = "cargo"
+args = [
+  "bench",
+  "--bench",
+  "${BENCH}",
+]
+
+# ── Profiling ─────────────────────────────────────────────────────────────────
+
+[tasks.perf-allow]
+description = "Lower perf_event_paranoid to 1 (required for flamegraph)"
+script = [
+  "echo 1 | sudo tee /proc/sys/kernel/perf_event_paranoid",
+]
+
+[tasks.flamegraph]
+description = "Generate flamegraph.svg via cargo-flamegraph (requires perf-allow)"
+dependencies = [
+  "bench-build",
+]
+command = "cargo"
+args = [
+  "flamegraph",
+  "--freq",
+  "100",
+  "--bench",
+  "${BENCH}",
+  "--",
+  "--bench",
+  "${BENCH_FN}",
+  "--sample-size",
+  "2",
+]
+
+[tasks.samply]
+description = "Statistical sampling profile via samply (opens Firefox Profiler)"
+script = [
+  """
+    cargo build --release --features profiling --bin profile_run
+    samply record --rate 100 target/release/profile_run
+    """,
+]
+
+[tasks.incremental-build]
+description = "Build the incremental comparison profiling binary"
+command = "cargo"
+args = [
+  "build",
+  "--release",
+  "--features",
+  "profiling",
+  "--bin",
+  "profile_incremental",
+]
+
+[tasks.incremental]
+description = "Run paper-style incremental benchmark comparison on uk-2007-05@100000 and export CSV/JSON"
+dependencies = [
+  "data",
+  "incremental-build",
+]
+command = "cargo"
+args = [
+  "run",
+  "--release",
+  "--features",
+  "profiling",
+  "--bin",
+  "profile_incremental",
+]
+
+[tasks.incremental-clean]
+description = "Remove incremental benchmark export artifacts"
+script = [
+  "rm -f artifacts/incremental/uk_2007_05_100000_incremental.csv artifacts/incremental/uk_2007_05_100000_incremental.json",
+]
+
+# ── Cleanup ───────────────────────────────────────────────────────────────────
+
+[tasks.clean-profile]
+description = "Remove generated profile artifacts"
+script = [
+  "rm -f flamegraph.svg perf.data perf.data.old profile.json",
+  "rm -f artifacts/incremental/uk_2007_05_100000_incremental.csv artifacts/incremental/uk_2007_05_100000_incremental.json",
+]

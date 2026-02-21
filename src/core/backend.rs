@@ -14,9 +14,6 @@ pub enum GraphBackend {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AccelerationTarget {
     PureRust,
-    Native,
-    Cuda,
-    Rocm,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

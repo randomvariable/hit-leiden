@@ -9,41 +9,41 @@ pub struct PartitionState {
     // Hierarchical state for HIT-Leiden
     pub levels: usize,
     pub supergraphs: Vec<InMemoryGraph>,
-    pub community_mapping_per_level: Vec<Vec<usize>>, // Community mappings per level
-    pub refined_community_mapping_per_level: Vec<Vec<usize>>, // Sub-community mappings per level
-    pub previous_subcommunity_mapping_per_level: Vec<Vec<usize>>, // Previous sub-community mappings
-    pub current_subcommunity_mapping_per_level: Vec<Vec<usize>>, // Current sub-community mappings
-    pub cc_indices_per_level: Vec<Vec<usize>>,        // CC-indices
+    pub community_mapping_per_level: Vec<Vec<usize>>,
+    pub refined_community_mapping_per_level: Vec<Vec<usize>>,
+    pub previous_subcommunity_mapping_per_level: Vec<Vec<usize>>,
+    pub current_subcommunity_mapping_per_level: Vec<Vec<usize>>,
 }
 
 impl PartitionState {
     pub fn identity(node_count: usize) -> Self {
+        // Share one identity allocation, clone for those that will be mutated independently
+        let identity: Vec<usize> = (0..node_count).collect();
         Self {
-            node_to_comm: (0..node_count).collect(),
+            node_to_comm: identity.clone(),
             comm_weights: vec![0.0; node_count],
             node_weights: vec![0.0; node_count],
             levels: 1,
             supergraphs: Vec::new(),
-            community_mapping_per_level: vec![(0..node_count).collect()],
-            refined_community_mapping_per_level: vec![(0..node_count).collect()],
-            previous_subcommunity_mapping_per_level: vec![(0..node_count).collect()],
-            current_subcommunity_mapping_per_level: vec![(0..node_count).collect()],
-            cc_indices_per_level: vec![(0..node_count).collect()],
+            community_mapping_per_level: vec![identity.clone()],
+            refined_community_mapping_per_level: vec![identity.clone()],
+            previous_subcommunity_mapping_per_level: vec![identity.clone()],
+            current_subcommunity_mapping_per_level: vec![identity],
         }
     }
 
     pub fn with_weights(node_count: usize, node_weights: Vec<f64>) -> Self {
+        let identity: Vec<usize> = (0..node_count).collect();
         Self {
-            node_to_comm: (0..node_count).collect(),
+            node_to_comm: identity.clone(),
             comm_weights: node_weights.clone(),
             node_weights,
             levels: 1,
             supergraphs: Vec::new(),
-            community_mapping_per_level: vec![(0..node_count).collect()],
-            refined_community_mapping_per_level: vec![(0..node_count).collect()],
-            previous_subcommunity_mapping_per_level: vec![(0..node_count).collect()],
-            current_subcommunity_mapping_per_level: vec![(0..node_count).collect()],
-            cc_indices_per_level: vec![(0..node_count).collect()],
+            community_mapping_per_level: vec![identity.clone()],
+            refined_community_mapping_per_level: vec![identity.clone()],
+            previous_subcommunity_mapping_per_level: vec![identity.clone()],
+            current_subcommunity_mapping_per_level: vec![identity],
         }
     }
 }
