@@ -13,6 +13,25 @@ target
 # Contains mutation testing data
 **/mutants.out*/
 
+# Rust build outputs and profiling artifacts
+release/
+*.rlib
+*.prof*
+*.out
+
+# Logs and local environment
+*.log
+.env*
+.private
+
+# Editor and OS artifacts
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+
 # RustRover
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
