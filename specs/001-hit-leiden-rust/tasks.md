@@ -83,14 +83,14 @@
 
 **Goal**: Add explicit high-throughput mode with reproducible benchmark framework and baseline comparison.
 
-**Independent Test**: Run benchmark suite on pinned hardware and verify >=2x median throughput versus frozen baseline with correctness retained.
+**Independent Test** (Deferred for first PR - release-gate evidence PR): Run benchmark suite on pinned hardware and verify >=2x median throughput versus frozen baseline with correctness retained.
 
 ### Verification for User Story 2
 
 - [x] T033 [P] [US2] Add integration test for throughput mode equivalence bounds in tests/integration/test_throughput_equivalence.rs
-- [x] T034 [P] [US2] Add benchmark reproducibility test harness in tests/integration/test_benchmark_reproducibility.rs
+- [ ] T034 [P] [US2] Add benchmark reproducibility test harness in tests/integration/test_benchmark_reproducibility.rs (Deferred for first PR - release-gate evidence PR)
 - [x] T035 [P] [US2] Add contract test for baseline comparison API in tests/contract/test_compare_baseline.rs
-- [x] T063 [P] [US2] Add integration test for release-gate ineligibility when using live per-step DB queries in tests/integration/test_release_gate_live_query_ineligible.rs
+- [ ] T063 [P] [US2] Add integration test for release-gate ineligibility when using live per-step DB queries in tests/integration/test_release_gate_live_query_ineligible.rs (Deferred for first PR - release-gate evidence PR)
 
 ### Implementation for User Story 2
 
@@ -99,30 +99,30 @@ MUST USE /home/naadir/go/src/github.com/randomvariable/hit-leiden/docs/2601.0855
 - [x] T036 [P] [US2] Implement explicit throughput mode scheduling in src/core/algorithm/throughput.rs
 - [x] T037 [US2] Implement thread-local frontier parallel execution in src/core/algorithm/parallel_frontier.rs
 - [x] T038 [US2] Implement benchmark runner against frozen baseline in src/benchmark/runner.rs
-- [x] T039 [US2] Implement pinned hardware profile enforcement in src/benchmark/release_gate.rs
+- [ ] T039 [US2] Implement pinned hardware profile enforcement in src/benchmark/release_gate.rs (Deferred for first PR - release-gate evidence PR)
 - [x] T040 [US2] Implement benchmark comparison/report generation in src/benchmark/compare.rs
 - [x] T041 [US2] Implement CLI benchmark commands in src/cli/benchmark.rs
-- [x] T042 [US2] Add benchmark suite definitions in benchmarks/criterion/hit_leiden_suite.rs
-- [x] T066 [US2] Implement release-gate eligibility reason codes for snapshot vs live-query graph sources in src/benchmark/release_gate.rs
+- [ ] T042 [US2] Add benchmark suite definitions in benchmarks/criterion/hit_leiden_suite.rs (Deferred for first PR - release-gate evidence PR)
+- [ ] T066 [US2] Implement release-gate eligibility reason codes for snapshot vs live-query graph sources in src/benchmark/release_gate.rs (Deferred for first PR - release-gate evidence PR)
 
-**Checkpoint**: US2 complete and independently demonstrable.
+**Checkpoint**: US2 implementation scaffolding complete; release-gate benchmark evidence deferred for first PR.
 
 ---
 
 ## Phase 5: User Story 3 - Use Optional Native Acceleration Safely (Priority: P3)
 
-**Goal**: Add optional acceleration targets (native, CUDA, ROCm), mmap backend, and Neo4j snapshot source with safe fallback.
+**Goal**: Add mmap backend and Neo4j snapshot source for first PR; optional acceleration targets (native, CUDA, ROCm) deferred.
 
-**Independent Test**: Enable each optional target/source/backend and verify mode-specific correctness parity or safe fallback behavior.
+**Independent Test** (Deferred for first PR - follow-up acceleration PR): Enable each optional target/source/backend and verify mode-specific correctness parity or safe fallback behavior.
 
 ### Verification for User Story 3
 
 - [x] T043 [P] [US3] Add integration tests for mmap backend parity in tests/integration/test_mmap_parity.rs
 - [x] T044 [P] [US3] Add integration tests for Neo4j snapshot projection parity in tests/integration/test_neo4j_snapshot_parity.rs
-- [x] T064 [P] [US3] Add integration tests for CUDA successful-run parity in deterministic and throughput modes in tests/integration/test_cuda_parity.rs
-- [x] T065 [P] [US3] Add integration tests for ROCm successful-run parity in deterministic and throughput modes in tests/integration/test_rocm_parity.rs
-- [x] T045 [P] [US3] Add integration tests for CUDA fallback behavior in tests/integration/test_cuda_fallback.rs
-- [x] T046 [P] [US3] Add integration tests for ROCm fallback behavior in tests/integration/test_rocm_fallback.rs
+- [ ] T064 [P] [US3] Add integration tests for CUDA successful-run parity in deterministic and throughput modes in tests/integration/test_cuda_parity.rs (Deferred for first PR - follow-up acceleration PR)
+- [ ] T065 [P] [US3] Add integration tests for ROCm successful-run parity in deterministic and throughput modes in tests/integration/test_rocm_parity.rs (Deferred for first PR - follow-up acceleration PR)
+- [ ] T045 [P] [US3] Add integration tests for CUDA fallback behavior in tests/integration/test_cuda_fallback.rs (Deferred for first PR - follow-up acceleration PR)
+- [ ] T046 [P] [US3] Add integration tests for ROCm fallback behavior in tests/integration/test_rocm_fallback.rs (Deferred for first PR - follow-up acceleration PR)
 - [x] T047 [P] [US3] Add contract test for source/backends resolution metadata in tests/contract/test_backend_resolution.rs
 
 ### Implementation for User Story 3
@@ -131,14 +131,14 @@ MUST USE /home/naadir/go/src/github.com/randomvariable/hit-leiden/docs/2601.0855
 - [x] T049 [US3] Implement mmap capability checks and diagnostics in src/core/graph/mmap_probe.rs
 - [x] T050 [US3] Implement Neo4j/Cypher snapshot projection adapter in src/core/graph/neo4j_snapshot.rs
 - [x] T051 [US3] Implement batched Neo4j extraction and mapping rules in src/core/graph/neo4j_mapping.rs
-- [x] T052 [US3] Implement optional native acceleration backend in src/accel/native.rs
-- [x] T053 [US3] Implement optional CUDA backend target in src/accel/cuda.rs
-- [x] T054 [US3] Implement optional ROCm backend target in src/accel/rocm.rs
-- [x] T055 [US3] Implement acceleration compatibility probes and fallback resolver in src/accel/probe.rs
+- [ ] T052 [US3] Implement optional native acceleration backend in src/accel/native.rs (Deferred for first PR - follow-up acceleration PR)
+- [ ] T053 [US3] Implement optional CUDA backend target in src/accel/cuda.rs (Deferred for first PR - follow-up acceleration PR)
+- [ ] T054 [US3] Implement optional ROCm backend target in src/accel/rocm.rs (Deferred for first PR - follow-up acceleration PR)
+- [ ] T055 [US3] Implement acceleration compatibility probes and fallback resolver in src/accel/probe.rs (Deferred for first PR - follow-up acceleration PR)
 - [x] T056 [US3] Integrate source/backend/accel fallback orchestration in src/core/runtime/orchestrator.rs
-- [x] T057 [US3] Extend CLI source/backend flags for mmap/neo4j/cuda/rocm in src/cli/options.rs
+- [ ] T057 [US3] Extend CLI source/backend flags for mmap/neo4j/cuda/rocm in src/cli/options.rs (Deferred for first PR - follow-up acceleration PR)
 
-**Checkpoint**: US3 complete and independently demonstrable.
+**Checkpoint**: US3 CPU-safe subset complete (mmap + neo4j snapshot); acceleration work deferred for first PR.
 
 ---
 
@@ -149,7 +149,7 @@ MUST USE /home/naadir/go/src/github.com/randomvariable/hit-leiden/docs/2601.0855
 - [x] T058 [P] Add release-gate runbook for pinned hardware and baseline commit process in docs/runbooks/release_gate.md
 - [x] T059 [P] Add troubleshooting guide for fallback diagnostics in docs/runbooks/fallback_diagnostics.md
 - [x] T060 Validate quickstart end-to-end scenarios in specs/001-hit-leiden-rust/quickstart.md
-- [x] T061 Run full test matrix and benchmark smoke suite via CI workflow in .github/workflows/ci.yml
+- [ ] T061 Run full test matrix and benchmark smoke suite via CI workflow in .github/workflows/ci.yml (Deferred for first PR - release-gate evidence PR)
 - [x] T062 Final API/contract consistency review against crate contract in specs/001-hit-leiden-rust/contracts/crate_api.md
 - [x] T067 Add integration test proving default run succeeds with only required graph-source argument in tests/integration/test_default_config_minimal_args.rs
 

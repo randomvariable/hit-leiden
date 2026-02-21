@@ -13,6 +13,10 @@ benchmarking against a frozen in-repo baseline commit, and optional native
 acceleration plus optional mmap graph backend behind strict validation and
 fallback rules.
 
+First PR scope note (2026-02-21): release-gate benchmark evidence and optional
+acceleration qualification are deferred to follow-up PRs; this PR establishes
+the correctness-first CPU baseline and benchmark/reporting scaffolding.
+
 ## Technical Context
 
 <!--
@@ -47,11 +51,11 @@ fallback rules.
   dependency.
 
 Initial gate assessment:
-- ✅ Performance Evidence: Benchmark methodology, baseline commit policy, and pinned-hardware release gate defined.
-- ✅ Correctness Coverage: Deterministic identity checks, invariant suite, and throughput equivalence thresholds defined.
-- ✅ Benchmark Reproducibility: Dataset identity, run config, hardware/runtime manifest, and fixed baseline required.
-- ✅ Safety & Determinism: Deterministic default; explicit throughput mode; optional FFI behind validation/fallback.
-- ✅ Surface Area Control: Single-project architecture, minimal dependencies, optional acceleration as feature-gated backend.
+- Deferred for first PR (release-gate evidence PR): benchmark performance evidence on pinned hardware.
+- ✅ Correctness Coverage: Deterministic identity checks and invariant suite are in scope for first PR.
+- Deferred for first PR (release-gate evidence PR): reproducibility/operator qualification evidence.
+- ✅ Safety & Determinism: Deterministic default and explicit throughput mode are in scope for first PR.
+- ✅ Surface Area Control: Single-project architecture and minimal dependencies remain in scope.
 
 Mmap backend policy:
 - Optional and explicit opt-in only.
@@ -65,9 +69,7 @@ Neo4j/Cypher source policy:
 - Snapshot extraction must support batched transfer and deterministic ID/edge mapping.
 
 GPU target policy (CUDA/ROCm):
-- Optional and explicit opt-in only.
-- CUDA and ROCm accelerated paths must satisfy identical mode-specific correctness policy as CPU paths.
-- GPU initialization and compatibility failures must produce actionable diagnostics and fallback behavior.
+- Deferred for first PR (follow-up acceleration PR).
 
 ## Project Structure
 
@@ -138,11 +140,11 @@ documentation approach.
 
 ## Post-Design Constitution Check
 
-- ✅ Performance as a Feature: Design includes explicit benchmark gate, baseline, and pinned-hardware policy.
-- ✅ Correctness Before Optimization: Validation-first lifecycle and mode-specific equivalence constraints included.
-- ✅ Reproducible Benchmarks: Contract and quickstart require metadata-complete benchmark records.
-- ✅ Memory Safety and Determinism: Safe Rust default, deterministic default mode, guarded optional acceleration.
-- ✅ Minimal Surface Area: Single-project scope, optional acceleration backend, focused contracts and artifacts.
+- Deferred for first PR (release-gate evidence PR): benchmark gate validation on pinned hardware.
+- ✅ Correctness Before Optimization: Validation-first lifecycle remains in scope.
+- Deferred for first PR (release-gate evidence PR): reproducible benchmark qualification.
+- ✅ Memory Safety and Determinism: Safe Rust baseline and deterministic defaults remain in scope.
+- ✅ Minimal Surface Area: first PR narrows to CPU baseline implementation.
 
 ## Complexity Tracking
 

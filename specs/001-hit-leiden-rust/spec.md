@@ -19,6 +19,12 @@
 - Q: Should Neo4j/Cypher data sources be supported directly? → A: Yes, via optional Neo4j/Cypher snapshot projection into crate-native graph structures; per-step live query execution is out of scope for release-gate mode.
 - Q: Should GPU acceleration targets be included? → A: Yes; CUDA and ROCm are optional acceleration targets with the same mode-specific correctness policy and safe fallback to non-GPU backends.
 
+### First PR Scope (2026-02-21)
+
+- Deferred for first PR (release-gate evidence PR): pinned-hardware benchmark evidence, >=2x throughput release claims, and full release-gate reproducibility qualification.
+- Deferred for first PR (release-gate evidence PR): optional native/GPU acceleration parity and fallback qualification.
+- This PR focuses on correctness-first CPU baseline implementation, deterministic/throughput modes, and non-gating benchmark/reporting plumbing.
+
 ## User Scenarios & Testing *(mandatory)*
 
 <!--
@@ -150,7 +156,8 @@ tolerance and explicit safety checks.
   crate-defined format suitable for reproducibility.
 - **FR-014**: System MUST define pinned hardware profiles for release-gate
   benchmark acceptance; runs on non-pinned hardware MUST be marked as
-  informational and MUST NOT be used for release performance claims.
+  informational and MUST NOT be used for release performance claims. (Deferred
+  for first PR: release-gate evidence PR)
 - **FR-008**: System MUST allow performance comparisons between baseline and
   candidate implementations under equivalent benchmark conditions, where baseline
   is the first correctness-validated in-repo implementation frozen as a
@@ -188,15 +195,19 @@ tolerance and explicit safety checks.
 - **FR-020**: System MUST mark release-gate benchmark runs as ineligible when
   graph data is consumed via live per-step database queries instead of projected
   snapshot backends, and this eligibility decision MUST be emitted in benchmark
-  artifacts with an explicit reason code.
+  artifacts with an explicit reason code. (Deferred for first PR:
+  release-gate evidence PR)
 - **FR-021**: System MUST support optional GPU acceleration targets for both CUDA
-  and ROCm environments behind explicit configuration controls.
+  and ROCm environments behind explicit configuration controls. (Deferred for
+  first PR: follow-up acceleration PR)
 - **FR-022**: System MUST enforce correctness parity for CUDA/ROCm accelerated
   runs using the same mode-specific equivalence policy as CPU backends, with
   explicit verification for both successful accelerated runs and fallback runs.
+  (Deferred for first PR: follow-up acceleration PR)
 - **FR-023**: System MUST fail safely with actionable diagnostics when CUDA/ROCm
   acceleration is unavailable or incompatible, and allow fallback to a supported
-  non-GPU backend when feasible.
+  non-GPU backend when feasible. (Deferred for first PR: follow-up acceleration
+  PR)
 
 ### Assumptions
 
@@ -245,15 +256,16 @@ tolerance and explicit safety checks.
   overridden.
 - **SC-003**: Candidate releases achieve at least 2x median throughput
   improvement over the initial in-repo frozen baseline commit on the primary
-  benchmark suite while preserving correctness pass status.
+  benchmark suite while preserving correctness pass status. (Deferred for first
+  PR: release-gate evidence PR)
 - **SC-004**: Benchmark reports are reproducible by a second run operator in at
   least 95% of benchmark cases using only documented inputs and run metadata on
-  pinned hardware profiles.
+  pinned hardware profiles. (Deferred for first PR: release-gate evidence PR)
 - **SC-005**: When optional native acceleration is enabled, at least 95% of
   supported benchmark cases meet mode-specific equivalence checks versus the
   standard path: deterministic runs with exact partition identity, and
   high-throughput runs with all hard invariants passing and quality metric delta
-  ≤ 0.1%.
+  ≤ 0.1%. (Deferred for first PR: follow-up acceleration PR)
 - **SC-006**: A new user can execute a default end-to-end run and interpret the
   pass/fail validation outcome in under 15 minutes using project documentation.
 - **SC-007**: Project documentation includes a complete mathematical description
@@ -266,10 +278,12 @@ tolerance and explicit safety checks.
   between 10M and 100M edges on pinned hardware profiles), mmap backend runs
   satisfy the same mode-specific correctness policy as in-memory runs and
   complete with no out-of-memory failure and with peak resident memory not
-  exceeding 85% of available system RAM.
+  exceeding 85% of available system RAM. (Deferred for first PR:
+  release-gate evidence PR)
 - **SC-010**: Neo4j/Cypher snapshot-projected runs satisfy the same mode-specific
   correctness policy as equivalent in-memory dataset runs on at least 95% of
-  qualification cases.
+  qualification cases. (Deferred for first PR: release-gate evidence PR)
 - **SC-011**: On qualified hardware, CUDA and ROCm accelerated runs each satisfy
   mode-specific correctness policy on at least 95% of qualification cases and
-  produce benchmark artifacts comparable to CPU baselines.
+  produce benchmark artifacts comparable to CPU baselines. (Deferred for first
+  PR: follow-up acceleration PR)
